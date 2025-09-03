@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Controle de Tarefas Avançado</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    background: #f0f2f5;
+    margin: 0;
+    padding: 20px;
+  }
+  h1 { text-align: center; margin-bottom: 20px; }
+
+  /* Formulário de adição */
+  .add-task {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  .add-task input, .add-task select {
+    padding: 6px;
+    border-radius: 5px;
+    border: 1px solid #ccc;
+  }
+  .add-task button {
+    padding: 7px 12px;
+    border: none;
+    border-radius: 5px;
+    background: #28a745;
+    color: white;
+    cursor: pointer;
+    transition: 0.3s;
+  }
+  .add-task button:hover { background: #218838; }
+
+  /* Board */
+  .board {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .column {
+    background: #fff;
+    border-radius: 8px;
+    padding: 10px;
+    flex: 1;
+    min-height: 450px;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+  }
+  .column h2 {
+    text-align: center;
+    margin-top: 0;
+    font-size: 1.2em;
+  }
+
+  /* Tarefas */
+  .task {
+    background: #e2e4e6;
+    padding: 10px;
+    border-radius: 6px;
+    margin: 5px 0;
+    cursor: grab;
+    transition: 0.2s;
+  }
+  .task:hover { transform: translateY(-2px); box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
+
+  /* Prioridade */
+  .task.normal { border-left: 5px solid #6c757d; }
+  .task.urgente { border-left: 5px solid #dc3545; }
+
+  /* Coluna Em Andamento */
+  .inprogress { background: #d0e7ff; border-left-color: #007bff; }
+
+  /* Coluna Concluído */
+  .done { background: #d4edda; border-left-color: #28a745; text-decoration: line-through; opacity: 0.8; }
+
+  .task .info { font-size: 0.85em; color: #555; }
+  .task button {
+    float: right;
+    background: #dc3545;
+    border: none;
+    border-radius: 3px;
+    color: white;
+    cursor: pointer;
+    padding: 2px 5px;
+    font-size: 0.8em;
+    transition: 0.2s;
+  }
+  .task button:hover { background: #c82333; }
+
+  /* Responsividade */
+  @media(max-width: 900px){
+    .board { flex-direction: column; }
+  }
+</style>
+</head>
+<body>
+
+<h1>Controle de Tarefas Avançado</h1>
+
+<div class="add-task">
+  <input type="text" id="task-title" placeholder="Título da tarefa">
+  <input type="date" id="task-date">
+  <select id="task-priority">
+    <option value="normal">Normal</option>
+    <option value="urgente">Urgente</option>
+  </select>
+  <button onclick="addTask()">Adicionar</button>
+</div>
+
+<div class="board">
+  <div class="column" id="todo"><h2>A Fazer</h2></div>
+  <div class="column" id="inprogress"><h2>Em Andamento</h2></div>
+  <div class="column" id="done"><h2>Pronto</h2></div>
+</div>
+
+<script>
+let board = { todo: [], inprogress: [], done: [] };
+
+// Carregar do LocalStorage
+if(localStorage.getItem('boardData')) {
+  board = JSON.parse(localStorage.getItem('boardData'));
+  renderBoard();
+}
+
+function saveBoard() {
+  localStorage.setItem('boardData', JSON.stringify(board));
+}
+
+function createTaskElement(task) {
+  const div = document.createElement('div');
+  div.className = `task ${task.priority} ${task.column}`;
+  div.draggable = true;
+
+  div.innerHTML = `<strong>${task.title}</strong>
+                   <div class="info">Data: ${task.date} | Prioridade: ${task.priority}</div>
+                   <button onclick="deleteTask(event,'${task.id}')">X</button>`;
+
+  div.addEventListener('dragstart', (e) => {
+    e.dataTransfer.setData('text/plain', task.id);
+    e.dataTransfer.setData('board', task.column);
+  });
+
+  return div;
+}
+
+// Ordena tarefas por data
+function sortTasksByDate(column) {
+  board[column].sort((a,b) => {
+    if(a.date === 'Sem data') return 1;
+    if(b.date === 'Sem data') return -1;
+    return new Date(a.date) - new Date(b.date);
+  });
+}
+
+function renderBoard() {
+  ['todo','inprogress','done'].forEach(col => {
+    sortTasksByDate(col);
+    const columnDiv = document.getElementById(col);
+    columnDiv.querySelectorAll('.task').forEach(t => t.remove());
+    board[col].forEach(task => {
+      const taskDiv = createTaskElement(task);
+      columnDiv.appendChild(taskDiv);
+    });
+  });
+}
+
+function addTask() {
+  const titleInput = document.getElementById('task-title');
+  const dateInput = document.getElementById('task-date');
+  const priorityInput = document.getElementById('task-priority');
+
+  const title = titleInput.value.trim();
+  if(!title) return alert('Digite o título da tarefa');
+
+  const task = {
+    id: Date.now().toString(),
+    title: title,
+    date: dateInput.value || 'Sem data',
+    priority: priorityInput.value,
+    column: 'todo' // sempre A Fazer
+  };
+
+  board['todo'].push(task);
+  saveBoard();
+  renderBoard();
+
+  titleInput.value = '';
+  dateInput.value = '';
+  priorityInput.value = 'normal';
+}
+
+function deleteTask(e,id){
+  e.stopPropagation();
+  ['todo','inprogress','done'].forEach(col => {
+    board[col] = board[col].filter(t => t.id !== id);
+  });
+  saveBoard();
+  renderBoard();
+}
+
+// Drag & Drop
+['todo','inprogress','done'].forEach(col => {
+  const columnDiv = document.getElementById(col);
+  columnDiv.addEventListener('dragover', e => e.preventDefault());
+  columnDiv.addEventListener('drop', e => {
+    e.preventDefault();
+    const taskId = e.dataTransfer.getData('text/plain');
+    const fromColumn = e.dataTransfer.getData('board');
+    const task = board[fromColumn].find(t => t.id === taskId);
+    if(!task) return;
+
+    board[fromColumn] = board[fromColumn].filter(t => t.id !== taskId);
+    task.column = col;
+    board[col].push(task);
+    saveBoard();
+    renderBoard();
+  });
+});
+</script>
+
+</body>
+</html>
